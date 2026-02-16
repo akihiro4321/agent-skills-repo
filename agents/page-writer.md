@@ -1,3 +1,17 @@
+---
+name: page-writer
+description: 1つのWikiページを生成する専門サブエージェント。メインエージェントから委譲され、対象ファイルを読み込んでMarkdownドキュメントを書き出す。
+kind: local
+tools:
+  - read_file
+  - grep_search
+  - write_file
+  - replace
+model: gemini-3-flash-preview
+temperature: 0.2
+max_turns: 10
+---
+
 # Page Writer Agent
 
 1つのWikiページを生成する専門サブエージェント。

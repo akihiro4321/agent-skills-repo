@@ -181,36 +181,46 @@ while IFS= read -r f; do
 done < /tmp/deepwiki_recon_targets.txt
 
 # 3c. hooks / middleware / plugins ディレクトリ
+EXT_COUNT=0
 while IFS= read -r f; do
-  if echo "$f" | grep -qiE '(hooks?|middleware|plugins?|extensions?)/' | head -20; then
+  [ "$EXT_COUNT" -ge 30 ] && break
+  if echo "$f" | grep -qiE '(hooks?|middleware|plugins?|extensions?)/'; then
     echo "**拡張機構ファイル**: \`$f\`" >> "$RECON_OUT"
     EXTENSION_FOUND=1
+    EXT_COUNT=$((EXT_COUNT + 1))
   fi
-done < /tmp/deepwiki_recon_targets.txt | head -30 >> "$RECON_OUT" 2>/dev/null || true
+done < /tmp/deepwiki_recon_targets.txt
 
 # 3d. Django urls.py / FastAPI router / Express router / Rails routes
+ROUTE_COUNT=0
 while IFS= read -r f; do
+  [ "$ROUTE_COUNT" -ge 20 ] && break
   if echo "$f" | grep -qiE '(urls\.py|routes?\.(ts|js|rb|py)|router\.(ts|js))'; then
     echo "**ルーティング定義**: \`$f\`" >> "$RECON_OUT"
     EXTENSION_FOUND=1
+    ROUTE_COUNT=$((ROUTE_COUNT + 1))
   fi
-done < /tmp/deepwiki_recon_targets.txt | head -20 >> "$RECON_OUT" 2>/dev/null || true
+done < /tmp/deepwiki_recon_targets.txt
 
 # 3e. YAML/JSON 設定による機能定義（CI, IaC, schema等）
+INFRA_COUNT=0
 while IFS= read -r f; do
-  if echo "$f" | grep -qiE '\.(ya?ml|json)$' | grep -viE '(package\.json|tsconfig|\.eslint|\.prettier|node_modules)'; then
+  [ "$INFRA_COUNT" -ge 20 ] && break
+  if echo "$f" | grep -qiE '\.(ya?ml|json)$' && ! echo "$f" | grep -qiE '(package\.json|tsconfig|\.eslint|\.prettier|node_modules)'; then
     case "$f" in
       *docker-compose*|*serverless*|*terraform*|*.github/workflows/*|*openapi*|*swagger*|*schema*)
         echo "**インフラ/スキーマ定義**: \`$f\`" >> "$RECON_OUT"
         EXTENSION_FOUND=1
+        INFRA_COUNT=$((INFRA_COUNT + 1))
         ;;
     esac
   fi
-done < /tmp/deepwiki_recon_targets.txt | head -20 >> "$RECON_OUT" 2>/dev/null || true
+done < /tmp/deepwiki_recon_targets.txt
 
 # 3f. デコレータ・アノテーションベースの機能登録パターン
-DECORATOR_FILES=$(grep -rlE '^\s*@(app\.|router\.|api\.|Controller|Injectable|Component|Module|Plugin|Hook|Command)' "$REPO_PATH" \
-  --include='*.ts' --include='*.py' --include='*.java' --include='*.kt' 2>/dev/null \
+DECORATOR_FILES=$(grep -rlE '^\s*@(app\.|router\.|api\.|Controller|Injectable|Component|Module|Plugin|Hook|Command)' \
+  --include='*.ts' --include='*.py' --include='*.java' --include='*.kt' \
+  "$REPO_PATH" 2>/dev/null \
   | head -20 | sed "s|^$REPO_PATH/||" || true)
 
 if [ -n "$DECORATOR_FILES" ]; then
@@ -224,8 +234,9 @@ fi
 
 # 3g. コード内拡張ポイント（ローダー、パーサー、レジストリ等）
 # ファイルスキャンでは検出できない拡張機構を、コード内の関数名から推定する
-EXTENSION_FUNCS=$(grep -rlE '(loadAgents|loadPlugins|loadExtensions|loadCommands|parseAgent|discoverTools|registerTool|registerPlugin|registerHook|registerMiddleware|loadFromDirectory|parseMarkdown.*agent|fromDirectory)' "$REPO_PATH" \
-  --include='*.ts' --include='*.js' --include='*.py' --include='*.go' --include='*.rs' 2>/dev/null \
+EXTENSION_FUNCS=$(grep -rlE '(loadAgents|loadPlugins|loadExtensions|loadCommands|parseAgent|discoverTools|registerTool|registerPlugin|registerHook|registerMiddleware|loadFromDirectory|parseMarkdown.*agent|fromDirectory)' \
+  --include='*.ts' --include='*.js' --include='*.py' --include='*.go' --include='*.rs' \
+  "$REPO_PATH" 2>/dev/null \
   | head -20 | sed "s|^$REPO_PATH/||" || true)
 
 if [ -n "$EXTENSION_FUNCS" ]; then

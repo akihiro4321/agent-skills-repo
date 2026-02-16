@@ -41,15 +41,15 @@ EXCLUDE_FILES=(
   "Gemfile.lock" "Cargo.lock" "poetry.lock"
 )
 
-# find の除外引数を構築
-FIND_EXCLUDES=""
+# find の除外引数を配列として構築（eval不使用）
+FIND_PRUNE_ARGS=()
 for dir in "${EXCLUDE_DIRS[@]}"; do
-  FIND_EXCLUDES="$FIND_EXCLUDES -path '*/$dir' -prune -o"
+  FIND_PRUNE_ARGS+=( -path "*/$dir" -prune -o )
 done
 
-NAME_EXCLUDES=""
+FIND_NAME_ARGS=()
 for pat in "${EXCLUDE_FILES[@]}"; do
-  NAME_EXCLUDES="$NAME_EXCLUDES ! -name '$pat'"
+  FIND_NAME_ARGS+=( ! -name "$pat" )
 done
 
 # 対象ディレクトリの処理
@@ -60,11 +60,11 @@ if [ -n "$INCLUDE_DIRS" ]; then
     dir=$(echo "$dir" | xargs)  # trim
     target="$REPO_PATH/$dir"
     if [ -d "$target" ]; then
-      eval "find '$target' $FIND_EXCLUDES -type f $NAME_EXCLUDES -print" >> "$FILES_OUT" 2>/dev/null || true
+      find "$target" "${FIND_PRUNE_ARGS[@]}" -type f "${FIND_NAME_ARGS[@]}" -print >> "$FILES_OUT" 2>/dev/null || true
     fi
   done
 else
-  eval "find '$REPO_PATH' $FIND_EXCLUDES -type f $NAME_EXCLUDES -print" > "$FILES_OUT" 2>/dev/null || true
+  find "$REPO_PATH" "${FIND_PRUNE_ARGS[@]}" -type f "${FIND_NAME_ARGS[@]}" -print > "$FILES_OUT" 2>/dev/null || true
 fi
 
 # 相対パスに変換
@@ -78,11 +78,8 @@ fi
 
 # ツリー構造の生成
 if command -v tree &>/dev/null; then
-  TREE_PRUNE=""
-  for dir in "${EXCLUDE_DIRS[@]}"; do
-    TREE_PRUNE="$TREE_PRUNE -I '$dir'"
-  done
-  eval "tree '$REPO_PATH' -L 4 --noreport --charset ascii $TREE_PRUNE" > "$TREE_OUT" 2>/dev/null || true
+  TREE_PRUNE_PATTERN=$(IFS='|'; echo "${EXCLUDE_DIRS[*]}")
+  tree "$REPO_PATH" -L 4 --noreport --charset ascii -I "$TREE_PRUNE_PATTERN" > "$TREE_OUT" 2>/dev/null || true
 else
   # tree がない場合は find + sed で簡易ツリー
   echo "$REPO_PATH" > "$TREE_OUT"

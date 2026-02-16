@@ -35,11 +35,11 @@ else
   # JSON構文チェック（python/node で）
   JSON_VALID=0
   if command -v python3 &>/dev/null; then
-    if python3 -c "import json; json.load(open('$OUTPUT_DIR/_meta.json'))" 2>/dev/null; then
+    if python3 -c "import json, sys; json.load(open(sys.argv[1]))" "$OUTPUT_DIR/_meta.json" 2>/dev/null; then
       JSON_VALID=1
     fi
   elif command -v node &>/dev/null; then
-    if node -e "JSON.parse(require('fs').readFileSync('$OUTPUT_DIR/_meta.json','utf8'))" 2>/dev/null; then
+    if node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$OUTPUT_DIR/_meta.json" 2>/dev/null; then
       JSON_VALID=1
     fi
   else
@@ -80,7 +80,7 @@ MD_COUNT=$(echo "$MD_FILES" | grep -c '.' 2>/dev/null || echo 0)
 echo "📄 Total pages: $MD_COUNT"
 
 # ページ数最低ラインチェック（comprehensive モード）
-MODE=$(python3 -c "import json; d=json.load(open('$OUTPUT_DIR/_meta.json')); print(d.get('mode',''))" 2>/dev/null || true)
+MODE=$(python3 -c "import json, sys; d=json.load(open(sys.argv[1])); print(d.get('mode',''))" "$OUTPUT_DIR/_meta.json" 2>/dev/null || true)
 if [ "$MODE" = "comprehensive" ] && [ "$MD_COUNT" -lt 15 ]; then
   echo "⚠️  WARNING: Comprehensive mode requires >= 15 pages, found $MD_COUNT"
   WARNINGS=$((WARNINGS + 1))
@@ -90,7 +90,7 @@ fi
 if [ -f "$OUTPUT_DIR/_meta.json" ] && [ "$JSON_VALID" -eq 1 ]; then
   MISSING_FIELDS=$(python3 -c "
 import json, sys
-d = json.load(open('$OUTPUT_DIR/_meta.json'))
+d = json.load(open(sys.argv[1]))
 missing = 0
 for s in d.get('sections', []):
   for p in s.get('pages', []):
@@ -99,7 +99,7 @@ for s in d.get('sections', []):
         print(f'  Page {p.get(\"id\",\"?\")} missing field: {f}')
         missing += 1
 sys.exit(missing)
-" 2>/dev/null)
+" "$OUTPUT_DIR/_meta.json" 2>/dev/null)
   FIELD_EXIT=$?
   if [ "$FIELD_EXIT" -gt 0 ]; then
     echo "⚠️  WARNING: _meta.json has $FIELD_EXIT missing fields:"
@@ -117,7 +117,7 @@ echo "--- 3. Link Validation ---"
 BROKEN_LINKS=0
 if [ -f "$OUTPUT_DIR/index.md" ]; then
   while IFS= read -r link; do
-    path=$(echo "$link" | grep -oP '\]\(\K[^)]+' | head -1)
+    path=$(echo "$link" | sed 's/.*](\(.*\))/\1/' | head -1)
     if [ -n "$path" ]; then
       full_path="$OUTPUT_DIR/$path"
       if [ ! -f "$full_path" ]; then
@@ -126,7 +126,7 @@ if [ -f "$OUTPUT_DIR/index.md" ]; then
         ERRORS=$((ERRORS + 1))
       fi
     fi
-  done < <(grep -oP '\[.*?\]\(\.\/.*?\)' "$OUTPUT_DIR/index.md" 2>/dev/null || true)
+  done < <(grep -oE '\[[^]]*\]\(\./[^)]*\)' "$OUTPUT_DIR/index.md" 2>/dev/null || true)
 fi
 
 # ページ内リンク
@@ -134,7 +134,7 @@ BROKEN_INTERNAL=0
 for md_file in $MD_FILES; do
   md_dir=$(dirname "$md_file")
   while IFS= read -r link; do
-    path=$(echo "$link" | grep -oP '\]\(\K[^)#]+' | head -1)
+    path=$(echo "$link" | sed 's/.*](\([^)#]*\).*/\1/' | head -1)
     if [ -n "$path" ] && [[ "$path" != http* ]]; then
       target="$md_dir/$path"
       if [ ! -f "$target" ]; then
@@ -143,7 +143,7 @@ for md_file in $MD_FILES; do
         WARNINGS=$((WARNINGS + 1))
       fi
     fi
-  done < <(grep -oP '\[.*?\]\([^)]+\)' "$md_file" 2>/dev/null | grep -v 'http' || true)
+  done < <(grep -oE '\[[^]]*\]\([^)]+\)' "$md_file" 2>/dev/null | grep -v 'http' || true)
 done
 
 [ "$BROKEN_LINKS" -eq 0 ] && [ "$BROKEN_INTERNAL" -eq 0 ] && echo "✅ All links valid"
@@ -246,7 +246,7 @@ if [ "$MD_COUNT" -gt 1 ]; then
   done
 
   OVERLAP_FOUND=0
-  echo -e "$ALL_H2S" | sed 's/^[^:]*://' | sort | uniq -d | while IFS= read -r dup; do
+  while IFS= read -r dup; do
     [ -z "$dup" ] && continue
     # 共通見出し（アーキテクチャ、関連ページ等）は除外
     if ! echo "$dup" | grep -qiE '^(アーキテクチャ|Architecture|関連ページ|Related|設定|Config|データフロー|Data Flow|エラーハンドリング|Error)'; then
@@ -254,7 +254,7 @@ if [ "$MD_COUNT" -gt 1 ]; then
       echo "⚠️  Similar heading \"$dup\" in: $files"
       OVERLAP_FOUND=1
     fi
-  done
+  done < <(echo -e "$ALL_H2S" | sed 's/^[^:]*://' | sort | uniq -d)
 
   [ "$OVERLAP_FOUND" -eq 0 ] && echo "✅ No significant overlaps"
 fi

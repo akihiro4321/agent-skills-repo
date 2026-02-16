@@ -19,7 +19,7 @@ relevant_filesのコードを実際に読み込み、page_prompt.mdのガイド�
 - **repo_path**: リポジトリのルートパス
 - **consistency_guide_path**: `_consistency_guide.md` のパス
 - **page_prompt_path**: `references/page_prompt.md` のパス
-- **language**: 出力言語（例: `ja`, `en`）
+- **language**: 出力ドキュメントの記述言語（例: `ja`, `en`）。ページのタイトル、見出し、説明文を全てこの言語で記述する
 
 ## Process
 
@@ -59,9 +59,10 @@ page_prompt.md のテンプレートに従い、以下を必ず含むページ�
 
 ### Step 5: ファイル書き出し
 
-1. 出力先ディレクトリが存在しなければ `mkdir -p` で作成する
-2. 生成したMarkdownを `output_path` に書き出す
-3. 書き出し後、行数を確認し60行未満なら追記する
+1. `output_path` が `OUTPUT_DIR` 配下であることを確認する（`..` を含むパスは拒否）
+2. 出力先ディレクトリが存在しなければ `mkdir -p` で作成する
+3. 生成したMarkdownを `output_path` に書き出す
+4. 書き出し後、行数を確認しモード別の最低行数（Comprehensive: 60行、Concise: 30行）未満なら追記する
 
 ## 品質チェックリスト（書き出し前に確認）
 

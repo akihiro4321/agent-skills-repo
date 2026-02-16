@@ -73,7 +73,7 @@ description: |
 |-----------|-----------|--------|
 | 対象リポジトリ | カレントディレクトリ | 任意のローカルパス |
 | 出力先 | `./wiki-output` | 任意のパス |
-| 出力言語 | `en` | `ja`, `zh`, `es`, `kr` 等 |
+| 出力言語 | `en` | `ja`, `zh`, `ko`, `es` 等 |
 | 生成モード | `comprehensive` | `concise` |
 | 対象ディレクトリ制限 | なし（全体） | カンマ区切りで指定 |
 | Mermaid図生成 | 有効 | 無効にも可 |
@@ -89,6 +89,9 @@ bash <skill_path>/scripts/collect_files.sh <REPO_PATH> [INCLUDE_DIRS]
 - `/tmp/deepwiki_tree.txt` - ツリー形式のファイル構造
 - `/tmp/deepwiki_readme.md` - README.mdの内容
 
+**注意**: `file_filters.json` の `max_file_size_kb`（デフォルト100KB）を超えるファイルはスキップされる。
+大規模なソースファイルが除外される場合は、この値を調整すること。
+
 ### Step 1.5: コード偵察（Code Reconnaissance）
 
 **省略してはならない。Wiki品質の最大の決定要因。**
@@ -98,6 +101,13 @@ bash <skill_path>/scripts/recon_code.sh <REPO_PATH> [INCLUDE_DIRS]
 ```
 
 出力：`/tmp/deepwiki_recon.md`
+
+偵察レポートの構成：
+1. **エントリーポイントと設定ファイル** - package.json, pyproject.toml 等の主要フィールド
+2. **Export / Public API 一覧** - 各ソースファイルのクラス・関数シグネチャ
+3. **拡張機構の検出** - プラグイン、スキル、フック、ルーティング、デコレータ等
+4. **モジュール間依存関係** - import/from による内部依存マップ
+5. **ディレクトリ別サマリー** - ファイル数と主要拡張子
 
 ### Step 2: Wiki構造の設計
 
@@ -111,10 +121,32 @@ bash <skill_path>/scripts/recon_code.sh <REPO_PATH> [INCLUDE_DIRS]
 **出力は有効なJSON** であること。コメントやトレーリングカンマは禁止。
 ファイルパスは偵察結果で確認済みの実在パスのみ。
 
+#### 出力ディレクトリ構造
+
+```
+{OUTPUT_DIR}/
+├── _meta.json                    # Wiki構造定義
+├── _consistency_guide.md         # 用語辞書・クロスリファレンス
+├── index.md                      # 目次（テーブル形式）
+└── sections/
+    ├── {section_id}/
+    │   ├── {page_id}.md
+    │   └── {page_id}.md
+    └── {section_id}/
+        └── {page_id}.md
+```
+
 #### Step 2.5: 一貫性ガイドの生成
 
 _meta.json 確定後、サブエージェントに渡す **一貫性ガイド** を生成する。
 これは `<OUTPUT_DIR>/_consistency_guide.md` に保存する。
+
+**生成アルゴリズム：**
+1. **用語辞書**: 偵察結果のexport名、README内のキーワード、設定ファイルの項目名から
+   プロジェクト固有の用語を抽出し、正式表記と説明を定義する
+2. **クロスリファレンス**: `_meta.json` の `related_pages` フィールドと
+   `relevant_files` の共有関係から、ページ間の参照パターンを決定する
+3. **共通ルール**: 出力言語に応じたMermaidラベルのクォートルール等を記載する
 
 一貫性ガイドの内容：
 
@@ -179,6 +211,10 @@ _meta.json の各ページに対して、**`agents/page-writer.md` サブエー�
 - page_prompt_path: {SKILL_PATH}/references/page_prompt.md
 - language: {LANGUAGE}
 ```
+
+**relevant_files の上限：**
+- 通常ページ: 最大8ファイル（`file_filters.json` の `max_files_per_page`）
+- エンドツーエンドフローページ: 最大10ファイル（横断的に指定可）
 
 **委譲の順序：**
 1. まずエンドツーエンドフローページを生成（他ページからの参照先になるため）

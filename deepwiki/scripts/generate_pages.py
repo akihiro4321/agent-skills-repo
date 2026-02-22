@@ -138,22 +138,38 @@ def build_prompt(title: str, description: str, file_paths: List[str], importance
 
     prompt += "\n### 生成時の注意事項\n"
     prompt += "解説などの前置きは発言せず、コンテキストを最小限に絞った状態で独立したWikiページを完成させ、そのままマークダウンファイルとして保存できるコンテンツのみを出力してください。\n"
-    
+
     return prompt
 
-async def run_gemini_cli(prompt: str, working_dir: str, target_dir: str) -> bool:
+def build_save_prompt(title: str, target_file_path: str) -> str:
+    """
+    Builds the final instruction to save the generated content to a file.
+    Separated from the main prompt to ensure Gemini focuses on writing first, then saving.
+    """
+    return f"""
+上記の指示に従い、「{title}」のWikiページのMarkdownコンテンツを生成し、
+**必ず以下のファイルパスに保存してください。**
+
+保存先ファイルパス: `{target_file_path}`
+
+ファイルへの書き込み（write_file ツール使用）が完了したら、その旨を報告してください。
+"""
+
+async def run_gemini_cli(prompt: str, working_dir: str, target_dir: str, output_dir: str) -> bool:
     """
     Executes the gemini CLI command to generate the page.
     Returns True if the command executes without throwing an exception.
     """
     # プロンプトは stdin で渡す（-p/--prompt は deprecated のため使用しない）
     # stdin に入力がある場合 gemini は自動的に non-interactive モードで動作する
+    # --sandbox はmacOS Seatbeltによりファイル書き込みを制限するため使用しない
+    # output_dir を --include-directories に含めないと Gemini がファイルを書き込めない
+    include_dirs = ",".join(set([working_dir, target_dir, output_dir]))
     cmd = [
         "gemini",
         "-m", "gemini-2.5-flash",
-        "--approval-mode", "yolo",
-        "--sandbox",
-        "--include-directories", f"{working_dir},{target_dir}",
+        "--approval-mode", "auto_edit",
+        "--include-directories", include_dirs,
     ]
 
     print("=" * 60)
@@ -260,12 +276,12 @@ async def process_page(page: Dict[str, Any], output_dir: str, working_dir: str, 
             print(f"[{page_id}] Retry attempt {attempt}/{MAX_RETRIES} due to validation failure...")
             
         # 1. Build prompt
-        full_title = f"{title} (Target Path: {target_file_path})"
-        prompt = build_prompt(full_title, description, abs_file_paths, importance, feedback)
+        prompt = build_prompt(title, description, abs_file_paths, importance, feedback)
+        prompt += build_save_prompt(title, target_file_path)
         
         # 2. Run Gemini
         print(f"[{page_id}] Running Gemini CLI...")
-        cli_success = await run_gemini_cli(prompt, working_dir, target_dir)
+        cli_success = await run_gemini_cli(prompt, working_dir, target_dir, output_dir)
         
         if not cli_success:
             feedback = "Gemini CLI execution failed or timed out. Please try to write the file again by strictly following instructions."

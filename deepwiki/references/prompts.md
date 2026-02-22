@@ -83,7 +83,7 @@ index.ts → App → ToolRegistry → BaseTool
 特定のモジュールや機能について質問された場合、チャット内で直接この形式で回答を構築する。
 Wiki生成の Phase 3b と同じ品質基準（Sources行、Mermaid、スニペット）を適用する。
 
-```markdown
+````markdown
 # [質問されたトピック名]
 
 [質問に対する簡潔な回答・概要（2-3文）]
@@ -112,11 +112,9 @@ sequenceDiagram
 ## 3. その他の重要事項 (エッジケース、設計パターンなど)
 
 [テーブルや追加の解説]
-
-```markdown
+````
 
 ---
-
 
 ## Phase 2: 構造設計テンプレート
 

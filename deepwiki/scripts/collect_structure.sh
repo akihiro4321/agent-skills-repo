@@ -49,7 +49,7 @@ EXCLUDE_FILES=(
 # find 用の除外オプション構築
 FIND_EXCLUDES=""
 for dir in "${EXCLUDE_DIRS[@]}"; do
-  FIND_EXCLUDES="$FIND_EXCLUDES -name $dir -prune -o"
+  FIND_EXCLUDES="$FIND_EXCLUDES -name \"$dir\" -prune -o"
 done
 
 # --- セクション 1: ディレクトリツリー ---
@@ -161,7 +161,8 @@ eval "find \"$TARGET_DIR\" \( $FIND_EXCLUDES -type f \( \
   -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o \
   -name '*.py' -o -name '*.rs' -o -name '*.go' -o -name '*.java' -o \
   -name '*.rb' -o -name '*.cs' -o -name '*.cpp' -o -name '*.c' -o \
-  -name '*.swift' -o -name '*.kt' \
+  -name '*.swift' -o -name '*.kt' -o -name '*.vue' -o -name '*.svelte' -o \
+  -name '*.php' -o -name '*.dart' \
   \) -print \)" 2>/dev/null | \
   xargs wc -l 2>/dev/null | sort -rn | head -21 | \
   (grep -v ' total$' || true) | \

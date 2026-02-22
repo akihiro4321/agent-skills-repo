@@ -87,7 +87,15 @@ def main():
 
     for root, dirs, files in os.walk(target_dir):
         # Skip common ignored directories
-        dirs[:] = [d for d in dirs if d not in ('.git', 'node_modules', 'venv', '.venv', '__pycache__', 'dist', 'build', '.next', '.run')]
+        dirs[:] = [d for d in dirs if d not in (
+            '.git', 'node_modules', '__pycache__', '.next', '.nuxt', 'dist', 'build', 'out',
+            '.cache', '.tmp', '.temp', 'vendor', '.venv', 'venv', 'env', '.env',
+            '.idea', '.vscode', '.DS_Store', 'coverage', '.nyc_output',
+            '.terraform', '.serverless', '.aws-sam',
+            'target',  # Rust/Java
+            'Pods',    # iOS
+            '.run',
+        )]
         
         for file in files:
             filepath = Path(root) / file
@@ -102,7 +110,7 @@ def main():
             deps: Set[str] = set()
             if file.endswith('.py'):
                 deps = analyze_python_dependencies(filepath)
-            elif file.endswith(('.js', '.jsx', '.ts', '.tsx')):
+            elif file.endswith(('.js', '.jsx', '.ts', '.tsx', '.vue')):
                 deps = analyze_js_ts_dependencies(filepath)
             elif file.endswith('.java'):
                 deps = analyze_java_dependencies(filepath)

@@ -213,7 +213,15 @@ def main():
 
     for root, dirs, files in os.walk(target_dir):
         # Skip common ignored directories
-        dirs[:] = [d for d in dirs if d not in ('.git', 'node_modules', 'venv', '.venv', '__pycache__', 'dist', 'build', '.next', '.run')]
+        dirs[:] = [d for d in dirs if d not in (
+            '.git', 'node_modules', '__pycache__', '.next', '.nuxt', 'dist', 'build', 'out',
+            '.cache', '.tmp', '.temp', 'vendor', '.venv', 'venv', 'env', '.env',
+            '.idea', '.vscode', '.DS_Store', 'coverage', '.nyc_output',
+            '.terraform', '.serverless', '.aws-sam',
+            'target',  # Rust/Java
+            'Pods',    # iOS
+            '.run',
+        )]
         
         for file in files:
             filepath = Path(root) / file
@@ -228,7 +236,7 @@ def main():
             sigs = []
             if file.endswith('.py'):
                 sigs = extract_python_signatures(filepath)
-            elif file.endswith(('.js', '.jsx', '.ts', '.tsx')):
+            elif file.endswith(('.js', '.jsx', '.ts', '.tsx', '.vue')):
                 sigs = extract_js_ts_signatures(filepath)
             elif file.endswith('.java'):
                 sigs = extract_java_signatures(filepath)

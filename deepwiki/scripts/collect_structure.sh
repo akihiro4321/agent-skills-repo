@@ -19,6 +19,7 @@ fi
 
 # 絶対パスに変換
 TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
+DEEPWIKI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "=== DeepWiki 構造分析 ==="
 echo "対象: $TARGET_DIR"
@@ -147,6 +148,10 @@ echo '```'
 
 # --- セクション 4: ファイルサイズランキング ---
 echo ""
+echo "## 依存関係マップ (import/export)"
+python3 "$DEEPWIKI_DIR/scripts/analyze_dependencies.py" "$TARGET_DIR" 2>/dev/null || true
+echo ""
+
 echo "## ファイルサイズ Top 20（大きいファイル=重要度が高い可能性）"
 echo '```'
 eval "find \"$TARGET_DIR\" \( $FIND_EXCLUDES -type f \( \
@@ -156,35 +161,14 @@ eval "find \"$TARGET_DIR\" \( $FIND_EXCLUDES -type f \( \
   -name '*.swift' -o -name '*.kt' \
   \) -print \)" 2>/dev/null | \
   xargs wc -l 2>/dev/null | sort -rn | head -21 | \
-  grep -v ' total$' | \
+  (grep -v ' total$' || true) | \
   sed "s|$TARGET_DIR/||" || echo "(集計に失敗しました)"
 echo '```'
 
 # --- セクション 5: エクスポート情報 ---
 echo ""
-echo "## 主要エクスポート（公開 API の概要）"
-echo ""
-echo "### TypeScript/JavaScript の export"
-echo '```'
-eval "find \"$TARGET_DIR\" \( $FIND_EXCLUDES -type f \( \
-  -name '*.ts' -o -name '*.tsx' \
-  \) ! -name '*.test.*' ! -name '*.spec.*' ! -name '*.d.ts' \
-  -print \)" 2>/dev/null | \
-  head -50 | \
-  xargs awk '/^(export |export default )(class|function|const|interface|type|enum|abstract )/ {print FILENAME ":" FNR ":" $0}' 2>/dev/null | \
-  sed "s|^$TARGET_DIR/||" | head -100 || true
-echo '```'
-
-echo ""
-echo "### Python の公開クラス・関数"
-echo '```'
-eval "find \"$TARGET_DIR\" \( $FIND_EXCLUDES -type f -name '*.py' \
-  ! -name 'test_*' ! -name '*_test.py' \
-  -print \)" 2>/dev/null | \
-  head -50 | \
-  xargs awk '/^(class |def |async def )/ {if ($0 !~ /^\s*#/) print FILENAME ":" FNR ":" $0}' 2>/dev/null | \
-  sed "s|^$TARGET_DIR/||" | head -100 || true
-echo '```'
+echo "## 主要エクスポート・関数シグネチャ"
+python3 "$DEEPWIKI_DIR/scripts/extract_signatures.py" "$TARGET_DIR" 2>/dev/null || true
 
 echo ""
 echo "=== 分析完了 ==="

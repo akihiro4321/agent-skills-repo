@@ -480,6 +480,13 @@ def format_result(result: ValidationResult) -> str:
         for p in result.passes:
             lines.append(f"    {p}")
 
+    if getattr(result, 'mermaid_validation_errors', None):
+        lines.append("")
+        lines.append("  ❌ Mermaid構文エラー:")
+        for err in result.mermaid_validation_errors:
+            indented_err = "\n".join([f"    > {line}" for line in err.split("\n")])
+            lines.append(indented_err)
+
     lines.append("")
     return '\n'.join(lines)
 
@@ -835,6 +842,11 @@ def generate_ai_corrections(results: list, ws: Optional[WikiStructureResult] = N
                     "          - データフロー（入力→処理→出力）の説明を追加\n"
                     "          - エッジケースやエラーハンドリングの解説を追加"
                 )
+            elif 'Mermaid構文エラー' in issue:
+                action_parts.append(
+                    f"Mermaidグラフの構文エラーを修正してください: {issue}\n"
+                    "          エラー詳細は実行結果の 'Mermaid構文エラー' セクションを確認してください。"
+                )
             elif 'Mermaid' in issue:
                 action_parts.append(
                     "Mermaidダイアグラムを追加してください。推奨: flowchart（処理フロー）+ sequenceDiagram（モジュール間通信）の2種類。\n"
@@ -932,6 +944,9 @@ def main():
         for md_file in md_files:
             result = validate_page(str(md_file), importance_override)
             results.append(result)
+
+        # Now we can safely print the outputs
+        for result in results:
             print(format_result(result))
 
         print(format_summary(results))

@@ -15,14 +15,17 @@
 | 大規模 | > 200 | 6-8+ | **30-50** |
 
 **セクション構成テンプレート（6セクション基本形）**
-※対象に該当しないもの以外は省略不可。「User Guide」などは特に省略しがちだが極めて重要。
+※対象に該当しないもの以外は省略不可。「User Guide」や「Development」などは特に省略しがちだが極めて重要。
 
 1. `Overview（概要）`: Architecture Overview / Project Structure
 2. `Getting Started（はじめに）`: Installation / Authentication / Basic Setup
 3. `User Guide（ユーザーガイド）`: CLI Usage / Modes / Plugin Usage など
 4. `Core Systems（コアシステム）`: 各アーキテクチャ・モジュールごとにページを生成
 5. `Advanced Topics（応用トピック）`: Extension System / Security / Observability など
-6. `Development（開発）`: Dev Setup / Build System / Testing Env
+6. `Development（開発）`: Dev Setup / Build System / Testing Env — **原則必須。** `package.json` のスクリプト、テストコマンド、Linter/Formatter設定、CI設定が存在する場合は必ず含めること。
+
+> [!WARNING]
+> **Section 6（Development）を意図的に省略してはならない。** `package.json`, `Makefile`, `*.config.*`, `.github/workflows/` などの設定ファイルをスキャンし、開発フロー情報が存在する場合は必ず outline.json に含めること。
 
 各ページには `id`, `title`, `filePaths` (5〜15ファイル程度を列挙), `importance` (high/medium/low), `relatedPages`, `keyClasses` のパラメータを含めて設計する。
 

@@ -33,6 +33,7 @@ PROMPT_FORMAT_INSTRUCTIONS = """
 ### 2. コードスニペットと Sources 行のルール
 - スニペットは疑似コード禁止。実際のコードから抜粋する。
 - スニペット冒頭に必ず出典コメント (`// パス:L開始-L終了`) を記載する。
+- **スニペット内の省略禁止**: スニペット中に `...` や `// ...` や `// (省略)` などの省略表現を含めること。実際のコードをそのまま抜粋すること。行数が長すぎる場合は、重要な行のみを含む範囲に絞る。
 - **Sources行**は各セクションの末尾に必ず配置し、**実際に参照した範囲（200行以内）の行番号を明記**する。（例: `[file.ts:L50-L100]`）。全行を指定する（例: `L1-L1000`）や、ページ末尾にまとめて1箇所に記載するのは減点対象。
 - **【行番号の取得手順】** `read_file` でファイルを読んだ直後に、参照した関数・クラスの開始行〜終了行をメモしておくこと。書き終えてから行番号を推測で補うことは禁止。
 
@@ -84,6 +85,7 @@ MarkdownパーサーおよびMermaidレンダリングエンジンでの**パー
 - 以下の矢印を意図に合わせて使用: `->>` (リクエスト), `-->>` (レスポンス), `-)` (非同期).
 - アクティベーションボックスには必ず `+`/`-` プレフィックスを使用すること（例: `A->>+B: Start`, `B-->>-A: End`）。
 - メッセージへのラベル付与にはコロン（`:`）を用いること。**絶対にフローチャート風の `A--|label|-->B` 表記を使用しないこと。**
+- **コロン（`:`）の後には必ずラベルを記載すること。** `DB-->>-Service:` のようにコロン後が空のままにするとパースエラーになる。戻り値がない場合は `void`、成功応答は `OK` や `完了` などを使用すること。
 
 ### 3. 【🔥 致命的エラー防止: 全般的な構文ルール】
 > [!CAUTION]
@@ -128,9 +130,10 @@ PROMPT_QUALITY_STANDARDS = """
 1. 代表的な定義か利用例 × 1-2
 """
 
-def build_prompt(title: str, description: str, file_paths: List[str], importance: str, feedback: Optional[str] = None) -> str:
+def build_prompt(title: str, description: str, file_paths: List[str], importance: str, feedback: Optional[str] = None, all_pages: Optional[List[Dict[str, Any]]] = None) -> str:
     """
     Constructs the prompt logic previously handled by the subagent.
+    all_pages: outline.json の全ページリスト。関連ページリンクの候補として使用。
     """
     paths_str = "\n".join([f"- {path}" for path in file_paths])
     
@@ -168,6 +171,20 @@ def build_prompt(title: str, description: str, file_paths: List[str], importance
 
 ### フィードバック（修正すべき問題点）:
 {feedback}
+"""
+
+    if all_pages:
+        others = [p for p in all_pages if p.get("title") != title]
+        pages_list = "\n".join(
+            [f"- [{p['title']}](./{p['filename']})" for p in others if p.get("filename")]
+        )
+        prompt += f"""
+## 関連ページリンクのルール（厳守）
+「## 関連ページ」セクションには、**以下のリストに含まれるページのみ**を記載してください。
+このリストに存在しないページへのリンクや、`(仮)` と書かれたリンクは**絶対に含めないこと**。
+
+利用可能なページ一覧:
+{pages_list}
 """
 
     prompt += "\n### 生成時の注意事項\n"
@@ -298,7 +315,7 @@ async def validate_page(page_file_path: str, importance: str, working_dir: str) 
     except Exception as e:
         return False, f"Exception during validation: {e}"
 
-async def process_page(page: Dict[str, Any], output_dir: str, working_dir: str, target_dir: str) -> Tuple[bool, Optional[str]]:
+async def process_page(page: Dict[str, Any], output_dir: str, working_dir: str, target_dir: str, all_pages: Optional[List[Dict[str, Any]]] = None) -> Tuple[bool, Optional[str]]:
     """
     Processes a single page: builds prompt, runs gemini, validates, and loops if necessary.
     Returns (success, error_message). error_message is None on success.
@@ -331,7 +348,7 @@ async def process_page(page: Dict[str, Any], output_dir: str, working_dir: str, 
             print(f"[{page_id}] Retry attempt {attempt}/{MAX_RETRIES} due to validation failure...")
             
         # 1. Build prompt
-        prompt = build_prompt(title, description, abs_file_paths, importance, feedback)
+        prompt = build_prompt(title, description, abs_file_paths, importance, feedback, all_pages)
         prompt += build_save_prompt(title, target_file_path)
         
         # 2. Run Gemini
@@ -397,9 +414,11 @@ async def main():
     # Process pages concurrently with a semaphore
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_PAGES)
     
+    all_pages = outline_data.get("pages", [])
+
     async def process_with_semaphore(page, idx):
         async with semaphore:
-            success, error_msg = await process_page(page, output_dir, working_dir, target_dir)
+            success, error_msg = await process_page(page, output_dir, working_dir, target_dir, all_pages)
             # Update status in memory
             if success:
                 page["status"] = "done"

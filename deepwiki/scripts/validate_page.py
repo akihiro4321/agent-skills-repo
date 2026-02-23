@@ -435,7 +435,41 @@ def validate_page(filepath: str, importance: Optional[str] = None) -> Validation
     else:
         result.issues.append("⚠️  関連ページリンクなし")
 
-    # --- 12. テーブル (5点) ---
+    # --- 12. Mermaid構文静的チェック (5点) ---
+    result.max_score += 5
+    mermaid_blocks_raw = re.findall(r'```mermaid\n([\s\S]*?)```', content)
+    mermaid_syntax_errors = []
+    for block in mermaid_blocks_raw:
+        # LRレイアウト
+        if re.search(r'\b(?:graph|flowchart)\s+LR\b', block):
+            mermaid_syntax_errors.append("LRレイアウト (graph LR / flowchart LR) が使用されています")
+        # []内に()が含まれてクォートされていない
+        unquoted = re.findall(r'\[[^\]"]*\([^)]*\)[^\]"]*\]', block)
+        if unquoted:
+            mermaid_syntax_errors.append(f"ノード [] 内に括弧 () が含まれているのにクォートされていません: {unquoted[:1]}")
+        # HTMLタグ
+        if re.search(r'<[a-zA-Z][^>]*>', block):
+            mermaid_syntax_errors.append("Mermaid内にHTMLタグが使用されています")
+        # シーケンス図固有チェック
+        if 'sequenceDiagram' in block:
+            # フローチャート風記法
+            if re.search(r'--\|[^|]*\|-->', block):
+                mermaid_syntax_errors.append("シーケンス図でフローチャート風記法 A--|label|-->B が使われています")
+            # コロン後が空のラベル
+            if re.search(r'(?:->>[+\-]?|-->>[+\-]?|-\)[+\-]?)\s*[\w]+\s*:\s*$', block, re.MULTILINE):
+                mermaid_syntax_errors.append("シーケンス図のメッセージ行でコロン（:）後のラベルが空です（例: A->>B:）")
+
+    if not mermaid_syntax_errors:
+        result.score += 5
+        if mermaid_count > 0:
+            result.passes.append("✅ Mermaid構文: 静的チェックOK")
+        else:
+            result.passes.append("✅ Mermaid構文: ブロックなし（チェック対象なし）")
+    else:
+        for err in mermaid_syntax_errors[:3]:
+            result.issues.append(f"❌ Mermaid構文エラー: {err}")
+
+    # --- 13. テーブル (5点) ---
     result.max_score += 5
     table_count = count_tables(content)
     min_tables = reqs['min_tables']

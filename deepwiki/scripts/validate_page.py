@@ -161,7 +161,7 @@ def count_snippet_citations(text: str) -> int:
     citations = 0
     for block in code_blocks:
         # パターン: // path/to/file.ts L行番号 or // path/to/file.ts:L行番号
-        if re.search(r'//\s*\S+\.(ts|js|py|go|rs|java|tsx|jsx|vue)\s*[:\s]L\d+', block):
+        if re.search(r'//\s*\S+\.(ts|js|py|go|rs|java|tsx|jsx|vue|sh|rb|kt|swift|cs|cpp|c|h|php|scala|ex|exs|dart|lua|r)\s*[:\s]L\d+', block):
             citations += 1
     return citations
 

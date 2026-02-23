@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional, Tuple
 # --- Configuration ---
 MAX_CONCURRENT_PAGES = 3
 MAX_RETRIES = 2
-GEMINI_TIMEOUT_SECONDS = 300 # 5 minutes
+GEMINI_TIMEOUT_SECONDS = 600 # 10 minutes
 
 # --- Prompt Constants ---
 PROMPT_SYSTEM_INSTRUCTION = """You are the deepwiki_page_generator, an expert technical documentation writer.
@@ -20,7 +20,7 @@ PROMPT_FORMAT_INSTRUCTIONS = """
 ## 出力フォーマット仕様 (Output Format & Guidelines)
 
 【執筆の最重要指示】
-そこに定義されている「個別ページの模範構成テンプレート」に**最も厳格に**従ってMarkdownを出力してください。指定外の推測に基づいた情報は記述しないでください。
+下記セクション「3. 個別ページの模範構成テンプレート」に**最も厳格に**従ってMarkdownを出力してください。指定外の推測に基づいた情報は記述しないでください。
 
 ### 1. セクション構成の基本方針
 - [Overview] プロジェクト概要、アーキテクチャ、モジュール構成
@@ -34,6 +34,7 @@ PROMPT_FORMAT_INSTRUCTIONS = """
 - スニペットは疑似コード禁止。実際のコードから抜粋する。
 - スニペット冒頭に必ず出典コメント (`// パス:L開始-L終了`) を記載する。
 - **Sources行**は各セクションの末尾に必ず配置し、**実際に参照した範囲（200行以内）の行番号を明記**する。（例: `[file.ts:L50-L100]`）。全行を指定する（例: `L1-L1000`）や、ページ末尾にまとめて1箇所に記載するのは減点対象。
+- **【行番号の取得手順】** `read_file` でファイルを読んだ直後に、参照した関数・クラスの開始行〜終了行をメモしておくこと。書き終えてから行番号を推測で補うことは禁止。
 
 ### 3. 個別ページの模範構成テンプレート
 
@@ -106,6 +107,25 @@ PROMPT_QUALITY_STANDARDS = """
 | high | **1200語以上** | 2-3個 | **2種類以上** | **5-8個必須** | 全セクション | **1個以上** |
 | medium | **600-1000語** | 1-2個 | 1種類以上 | **3-5個必須** | 全セクション | 推奨 |
 | low | 300-500語 | 1個 | 1種類以上 | 1-2個 | 主要セクション | 任意 |
+
+### コードスニペット内訳の目安（達成方法）
+
+スニペット数が不足しやすいため、以下の内訳を参考に構成すること。
+
+**importance: high（5-8個）の場合:**
+1. 主要クラス・インターフェースの定義（型・フィールド確認用） × 1-2
+2. コアロジックの重要メソッド（処理の核心部分） × 2-3
+3. データフロー・呼び出し連鎖（エントリーポイント〜主要処理） × 1
+4. 設定・定数・Enum 等の一覧 × 1
+5. エラーハンドリング・特殊ケースの実装 × 1（あれば）
+
+**importance: medium（3-5個）の場合:**
+1. 主要クラス・インターフェース定義 × 1
+2. コアメソッド（1-2個） × 1-2
+3. 利用例・呼び出し方 × 1
+
+**importance: low（1-2個）の場合:**
+1. 代表的な定義か利用例 × 1-2
 """
 
 def build_prompt(title: str, description: str, file_paths: List[str], importance: str, feedback: Optional[str] = None) -> str:
@@ -121,7 +141,13 @@ def build_prompt(title: str, description: str, file_paths: List[str], importance
     prompt += f"- **重要度**: {importance}\n\n"
     
     prompt += f"## 参照ファイル (Source Files)\n"
-    prompt += f"以下のファイルを必ず参照して、事実に基づいた正確なドキュメントを作成してください。\n{paths_str}\n\n"
+    prompt += (
+        f"以下のファイルを必ず参照してください。\n"
+        f"**【重要】まず全ファイルを `read_file` ツールで実際に開き、主要なクラス定義・関数定義・インターフェースを確認してから書き始めること。**\n"
+        f"ファイルを読まずにプロンプトの情報だけで書き始めることは禁止します。\n"
+        f"各ファイルを読んだ直後に、参照した行番号範囲（例: L45-L120）をメモしておき、Sources行やコードスニペットの出典に正確に反映してください。\n"
+        f"{paths_str}\n\n"
+    )
     
     prompt += PROMPT_FORMAT_INSTRUCTIONS
     prompt += PROMPT_MERMAID_RULES
@@ -130,9 +156,17 @@ def build_prompt(title: str, description: str, file_paths: List[str], importance
     if feedback:
         prompt += f"""
 ## 修正ループ時の動作指示 (Correction Instructions for Retry)
-フィードバック（不足やエラーの指摘）を受け付けた場合、既存の生成済みMarkdownファイルを読み込んで問題箇所を確認し、修正を反映・上書きしてください。同じ過ちを繰り返さないことが重要です。
+前回の生成結果に品質上の問題がありました。以下の手順で修正してください。
 
-### フィードバック（エラー内容）:
+**【必須手順】**
+1. まず `read_file` で既存の生成済みファイルを開き、現在の内容を確認する
+2. 下記フィードバックで指摘された不足要素のみを追加・修正する
+3. 内容全体を書き直すのではなく、不足している要素の追加に集中する
+4. 修正後、ファイルを上書き保存する
+
+同じ問題を繰り返さないことが最重要です。
+
+### フィードバック（修正すべき問題点）:
 {feedback}
 """
 
@@ -140,6 +174,26 @@ def build_prompt(title: str, description: str, file_paths: List[str], importance
     prompt += "解説などの前置きは発言せず、コンテキストを最小限に絞った状態で独立したWikiページを完成させ、そのままマークダウンファイルとして保存できるコンテンツのみを出力してください。\n"
 
     return prompt
+
+def extract_critical_feedback(validation_output: str, max_issues: int = 3) -> str:
+    """
+    バリデーション出力から重要なフィードバックのみを抽出して返す。
+    安価なモデルに渡す際、長い出力全体ではなく❌ / ⚠️ の指摘に絞ることで
+    リトライ時の修正精度を高める。
+    """
+    critical = [l.strip() for l in validation_output.splitlines() if "❌" in l]
+    warnings = [l.strip() for l in validation_output.splitlines() if "⚠️" in l]
+
+    selected = critical[:max_issues]
+    if len(selected) < max_issues:
+        selected += warnings[: max_issues - len(selected)]
+
+    if not selected:
+        # フォールバック: 先頭数行をそのまま使う
+        selected = [l.strip() for l in validation_output.splitlines() if l.strip()][:5]
+
+    return "\n".join(selected)
+
 
 def build_save_prompt(title: str, target_file_path: str) -> str:
     """
@@ -298,7 +352,7 @@ async def process_page(page: Dict[str, Any], output_dir: str, working_dir: str, 
             break
         else:
             print(f"[{page_id}] ❌ Validation failed. Gathering feedback for retry...")
-            feedback = validation_output
+            feedback = extract_critical_feedback(validation_output)
 
     if not success:
         print(f"[{page_id}] 🛑 Failed to generate a valid page after {MAX_RETRIES} retries.")

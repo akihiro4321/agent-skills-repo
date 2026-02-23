@@ -156,12 +156,17 @@ def count_code_snippets(text: str) -> int:
 
 
 def count_snippet_citations(text: str) -> int:
-    """コードスニペット内の出典コメント (// path:L行番号) をカウント"""
+    """コードスニペット内の出典コメント (// path:L行番号 または # path:L行番号) をカウント。
+    // は TS/JS/Go/Rust/Java など、# は Python/Ruby/Shell/YAML など。
+    """
     code_blocks = re.findall(r'```\w+\n([\s\S]*?)```', text)
     citations = 0
     for block in code_blocks:
-        # パターン: // path/to/file.ts L行番号 or // path/to/file.ts:L行番号
-        if re.search(r'//\s*\S+\.(ts|js|py|go|rs|java|tsx|jsx|vue|sh|rb|kt|swift|cs|cpp|c|h|php|scala|ex|exs|dart|lua|r)\s*[:\s]L\d+', block):
+        # (?://|#) で // または # のどちらのコメント形式も受け入れる
+        if re.search(
+            r'(?://|#)\s*\S+\.(ts|js|py|go|rs|java|tsx|jsx|vue|sh|rb|kt|swift|cs|cpp|c|h|php|scala|ex|exs|dart|lua|r)\s*[:\s]L\d+',
+            block,
+        ):
             citations += 1
     return citations
 
@@ -444,9 +449,22 @@ def validate_page(filepath: str, importance: Optional[str] = None) -> Validation
         if re.search(r'\b(?:graph|flowchart)\s+LR\b', block):
             mermaid_syntax_errors.append("LRレイアウト (graph LR / flowchart LR) が使用されています")
         # []内に()が含まれてクォートされていない
-        unquoted = re.findall(r'\[[^\]"]*\([^)]*\)[^\]"]*\]', block)
-        if unquoted:
-            mermaid_syntax_errors.append(f"ノード [] 内に括弧 () が含まれているのにクォートされていません: {unquoted[:1]}")
+        unquoted_bp = re.findall(r'\[[^\]"]*\([^)]*\)[^\]"]*\]', block)
+        if unquoted_bp:
+            mermaid_syntax_errors.append(f"ノード [] 内に括弧 () が含まれているのにクォートされていません: {unquoted_bp[:1]}")
+        # ()内に[]が含まれてクォートされていない
+        unquoted_pb = re.findall(r'\([^)"]*\[[^\]]*\][^)"]*\)', block)
+        if unquoted_pb:
+            mermaid_syntax_errors.append(f"ノード () 内に角括弧 [] が含まれているのにクォートされていません: {unquoted_pb[:1]}")
+        # {}内に括弧や|が含まれてクォートされていない
+        unquoted_bs = re.findall(r'\{[^}"]*[(\[|][^}"]*\}', block)
+        if unquoted_bs:
+            mermaid_syntax_errors.append(f"ひし形ノード {{}} 内に括弧や | が含まれているのにクォートされていません: {unquoted_bs[:1]}")
+        # フローチャートのノードラベル内に|パイプが含まれてクォートされていない
+        if re.search(r'\b(?:graph|flowchart)\b', block):
+            unquoted_pipe = re.findall(r'(?:\[|\()([^"()\[\]]*\|[^"()\[\]]*?)(?:\]|\))', block)
+            if unquoted_pipe:
+                mermaid_syntax_errors.append(f"ノードラベル内に | パイプ文字が含まれているのにクォートされていません: {unquoted_pipe[:1]}")
         # HTMLタグ
         if re.search(r'<[a-zA-Z][^>]*>', block):
             mermaid_syntax_errors.append("Mermaid内にHTMLタグが使用されています")

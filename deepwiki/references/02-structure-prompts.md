@@ -109,3 +109,4 @@
 | `pages[].importance` | ○ | string | `"high"` / `"medium"` / `"low"` のいずれか（小文字必須） |
 | `pages[].relatedPages` | △ | string[] | 関連ページのIDリスト（省略可） |
 | `pages[].status` | ○ | string | 初期値は必ず `"pending"`。スクリプトが `"done"` または `"error"` に更新する |
+| `remoteBaseUrl` | △ | string | リモートリポジトリのベースURL（例: `"https://github.com/org/repo"`）。`fix_sources.py` が `git remote` から自動取得できない場合のフォールバック。省略可だが、プライベートGitLabやモノレポでは設定を推奨 |

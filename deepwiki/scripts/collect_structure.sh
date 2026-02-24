@@ -110,6 +110,7 @@ if command -v tree &>/dev/null; then
   tree "$TARGET_DIR" -I "$TREE_IGNORE" ${TREE_GIT_FLAG:+"$TREE_GIT_FLAG"} --dirsfirst -L "$MAX_DEPTH" -F --noreport 2>/dev/null || \
     echo "(tree コマンドの実行に失敗しました)"
 else
+  set +o pipefail
   if $USE_GIT; then
     # git ls-files を相対パスで表示
     git -C "$TARGET_DIR" ls-files --cached --others --exclude-standard \
@@ -118,6 +119,7 @@ else
     eval "find \"$TARGET_DIR\" -maxdepth $MAX_DEPTH \( $FIND_EXCLUDES -type f -print -o -type d -print \)" 2>/dev/null | \
       sed "s|^$TARGET_DIR/||" | sort || echo "(find の実行に失敗しました)"
   fi
+  set -o pipefail
 fi
 
 echo '```'

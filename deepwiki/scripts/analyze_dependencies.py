@@ -69,6 +69,19 @@ def analyze_java_dependencies(filepath: Path) -> Set[str]:
         print(f"Warning: Failed to parse Java file {filepath}: {e}", file=sys.stderr)
     return dependencies
 
+TEST_FILE_RE = re.compile(
+    r'/(tests?|spec|__tests__|e2e)/'
+    r'|\.(test|spec)\.(ts|tsx|js|jsx|py|go|rs|java|kt|rb|cs|swift|dart)$'
+    r'|/test_[^/]+\.(py|go)$'
+    r'|/[^/]+_test\.(py|go|rs)$'
+    r'|/[^/]+Test\.(java|kt)$'
+)
+
+
+def is_test_file(path: str) -> bool:
+    return bool(TEST_FILE_RE.search(path.replace('\\', '/')))
+
+
 def get_git_files(target_dir: Path) -> Optional[List[Path]]:
     """gitリポジトリなら git ls-files で .gitignore 考慮済みのファイルリストを返す。失敗時は None。"""
     try:
@@ -85,11 +98,12 @@ def get_git_files(target_dir: Path) -> Optional[List[Path]]:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python analyze_dependencies.py <target_directory> [--json]", file=sys.stderr)
+        print("Usage: python analyze_dependencies.py <target_directory> [--json] [--exclude-tests]", file=sys.stderr)
         sys.exit(1)
-        
+
     target_dir = Path(sys.argv[1]).resolve()
-    output_json = len(sys.argv) > 2 and sys.argv[2] == '--json'
+    output_json = '--json' in sys.argv[2:]
+    exclude_tests = '--exclude-tests' in sys.argv[2:]
     
     if not target_dir.exists() or not target_dir.is_dir():
         print(f"Error: Directory {target_dir} does not exist.", file=sys.stderr)
@@ -103,6 +117,9 @@ def main():
     def process_file(filepath: Path) -> None:
         file = filepath.name
         rel_path = str(filepath.relative_to(target_dir))
+
+        if exclude_tests and is_test_file('/' + rel_path):
+            return
 
         # 巨大なファイルやバンドル済みのファイルは解析スキップ
         if file.endswith('.min.js') or file.endswith('.bundle.js') or 'bundle' in filepath.parts:

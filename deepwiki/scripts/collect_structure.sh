@@ -207,7 +207,9 @@ if [ -f "$DEEPWIKI_DIR/.venv/bin/python" ]; then
   PYTHON_CMD="$DEEPWIKI_DIR/.venv/bin/python"
 fi
 
-$PYTHON_CMD "$DEEPWIKI_DIR/scripts/analyze_dependencies.py" "$TARGET_DIR" 2>/dev/null || true
+PYTHON_EXTRA_ARGS=""
+$EXCLUDE_TESTS && PYTHON_EXTRA_ARGS="--exclude-tests"
+$PYTHON_CMD "$DEEPWIKI_DIR/scripts/analyze_dependencies.py" "$TARGET_DIR" $PYTHON_EXTRA_ARGS 2>/dev/null || true
 echo ""
 
 echo "## ファイルサイズ Top 20（大きいファイル=重要度が高い可能性）"
@@ -224,7 +226,7 @@ echo '```'
 # --- セクション 5: エクスポート情報 ---
 echo ""
 echo "## 主要エクスポート・関数シグネチャ"
-$PYTHON_CMD "$DEEPWIKI_DIR/scripts/extract_signatures.py" "$TARGET_DIR" 2>/dev/null || true
+$PYTHON_CMD "$DEEPWIKI_DIR/scripts/extract_signatures.py" "$TARGET_DIR" $PYTHON_EXTRA_ARGS 2>/dev/null || true
 
 echo ""
 echo "=== 分析完了 ==="
